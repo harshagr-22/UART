@@ -1,0 +1,89 @@
+module transmitter
+#(parameter cmp_clk = 217)
+
+(input i_clk, i_rx_ser,rst,
+output reg o_rx_dvalid, d_parity,
+output reg [7:0] o_rx_byte );
+localparam [1:0] s0 =2'b00, s1=2'b01, s2=2'b10, s3=2'b11;
+reg[1:0] state_reg, state_nxt;
+//signals taken
+reg[7:0] clk;
+reg[2:0] index;
+
+always@(posedge i_clk, posedge rst)
+if(rst)
+state_reg<= s0;
+else
+state_reg<= state_nxt;
+
+//next state logic
+always@(posedge i_clk)
+ case (state_reg)
+//state 0
+s0: 
+begin
+index <= 1'b0;
+clk <= 1'b0;
+if(i_rx_ser ==1'b0)
+state_nxt <=s1;
+else
+state_nxt <=s0;
+end
+//state 1
+s1:
+begin
+if (clk==cmp_clk-1/2)
+  begin
+    if(i_rx_ser== 1'b0)
+	 begin
+	 state_nxt <= s2;
+	 clk <=8'b0;
+	 end
+	 else
+	state_nxt <= s0;
+  end
+else
+begin
+state_nxt<= s1;
+clk<= clk+1 ;
+end
+end
+//state 2
+s2:
+begin
+if(clk == cmp_clk)
+begin
+  clk<=0;
+  o_rx_byte[index] <= i_rx_ser;
+	 if (index < 7)
+	   begin
+		state_nxt<=s2;
+		index<=index+1;
+	   end
+	 else
+	   begin
+		index <= 3'b0;
+		state_nxt <= s3;
+		end
+end 
+else
+ begin
+clk<= clk+1;
+state_nxt <= s2;
+ end
+end
+//state 3
+s3:
+
+if(clk ==0)
+begin
+o_rx_dvalid <=1'b1;
+d_parity <= o_rx_byte[0]^o_rx_byte[1]^o_rx_byte[2]^o_rx_byte[3]^o_rx_byte[4]^o_rx_byte[5]^o_rx_byte[6]^o_rx_byte[7];
+clk<= clk+1;
+state_nxt <= s3;
+end
+else
+state_nxt <= s0;
+endcase
+
+endmodule
